@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ocean Storm Simulator</title>
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Error Logger: Will ensure we know what is wrong -->
+    <script>
+        window.onerror = function (message, source, lineno, colno, error) {
+            const el = document.getElementById('error-overlay');
+            if (el) {
+                el.style.display = 'block';
+                el.innerText += `Error: ${message}\nAt: ${source}:${lineno}\n\n`;
+            }
+        };
+        window.onunhandledrejection = function (event) {
+            const el = document.getElementById('error-overlay');
+            if (el) {
+                el.style.display = 'block';
+                el.innerText += `Promise Error: ${event.reason}\n\n`;
+            }
+        };
+    </script>
+    <style>
+        #error-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(200, 0, 0, 0.9);
+            color: white;
+            padding: 20px;
+            font-family: monospace;
+            z-index: 99999;
+            white-space: pre-wrap;
+        }
+    </style>
+
+    <!-- Import Map using ESM.SH for robustness -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://esm.sh/three@0.160.0",
+                "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="error-overlay"></div>
+
+    <div id="controls">
+        <h2>Ocean Storm Simulator</h2>
+        <div style="font-size: 10px; color: #555; margin-bottom: 5px;">v15.0 (Slider Fixed - No Glare)</div>
+        <div class="label">Wind Speed</div><input id="wind" type="range" min="0" max="12" step="0.1" value="2">
+        <div class="label">Wave Height</div><input id="waveHeight" type="range" min="0" max="6" step="0.1" value="0.5">
+        <div class="label">Breeze Direction</div><input id="breeze" type="range" min="0" max="360" step="1" value="45">
+        <button id="storm">Toggle Storm</button>
+    </div>
+
+    <!-- Single Circular Countdown -->
+    <div class="countdown-container">
+        <svg class="progress-ring" width="250" height="250">
+            <circle class="progress-ring__circle-bg" stroke="#444" stroke-width="8" fill="transparent" r="100" cx="125"
+                cy="125" />
+            <circle class="progress-ring__circle" id="progress-ring-circle" stroke="#4caf50" stroke-width="8"
+                fill="rgba(0,0,0,0.3)" r="100" cx="125" cy="125" />
+        </svg>
+        <div class="timer-text" id="countdown-display">
+            00d:00h:00m:00s
+        </div>
+    </div>
+
+    <!-- Timer Script (Standalone) -->
+    <script src="js/timer.js"></script>
+
+    <!-- Main 3D Script -->
+    <script type="module" src="js/app.js?v=15"></script>
+</body>
+
+</html>

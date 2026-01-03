@@ -1,0 +1,86 @@
+body,
+html {
+    margin: 0;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    background-color: #000;
+}
+
+#controls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 15px;
+    border-radius: 8px;
+    width: 300px;
+    z-index: 1000;
+}
+
+#controls h2 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+}
+
+.label {
+    margin-top: 8px;
+    font-size: 14px;
+}
+
+input[type=range] {
+    width: 100%;
+}
+
+#storm {
+    margin-top: 10px;
+    width: 100%;
+    padding: 8px;
+    cursor: pointer;
+}
+
+/* Countdown Overlay */
+.countdown-container {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 250px;
+    height: 250px;
+    z-index: 999;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.progress-ring {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: rotate(-90deg);
+}
+
+.progress-ring__circle {
+    transition: stroke-dashoffset 0.35s;
+    transform-origin: 50% 50%;
+}
+
+.timer-text {
+    z-index: 1000;
+    color: white;
+    font-size: 20px;
+    /* Base size */
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+    display: flex;
+    gap: 4px;
+    font-family: 'Courier New', Courier, monospace;
+    /* Monospace for alignment */
+}
+
+.unit small {
+    font-size: 10px;
+    font-weight: normal;
+    color: #ccc;
+    vertical-align: text-top;
+    margin-left: 1px;
+}
