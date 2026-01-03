@@ -1,15 +1,14 @@
-
 import * as THREE from 'three';
 import { Water } from 'three/addons/objects/Water.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 
-console.log("Main 3D script starting...");
+console.log("Main 3D script starting (v18.3 corrected)...");
 
 try {
     // ——— Basic Three.js setup ———
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 20000);
-    camera.position.set(0, 30, 100);
+    camera.position.set(0, 100, 300); // Higher camera to see the swells
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -26,14 +25,19 @@ try {
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = 'rgb(128, 128, 255)';
         ctx.fillRect(0, 0, size, size);
-        for (let i = 0; i < 20000; i++) {
+        for (let i = 0; i < 2000; i++) {
             const x = Math.random() * size;
             const y = Math.random() * size;
-            const r = Math.random() * 2;
-            ctx.fillStyle = `rgba(${Math.random() * 255}, ${Math.random() * 255}, 255, 0.1)`;
+            const w = Math.random() * 60 + 20;
+            const h = Math.random() * 2 + 0.5;
+            const r = 124 + Math.random() * 8;
+            const g = 124 + Math.random() * 8;
+            ctx.fillStyle = `rgba(${r}, ${g}, 255, 0.4)`;
             ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
             ctx.fill();
+            ctx.ellipse(x - size, y, w, h, 0, 0, Math.PI * 2);
+            ctx.ellipse(x + size, y, w, h, 0, 0, Math.PI * 2);
         }
         const texture = new THREE.CanvasTexture(canvas);
         texture.wrapS = THREE.RepeatWrapping;
@@ -55,71 +59,99 @@ try {
     skyUniforms['mieCoefficient'].value = 0.005;
     skyUniforms['mieDirectionalG'].value = 0.8;
 
-    // ——— Water ———
-    const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
+    // ——— Water (High Resolution Plane for Displacement) ———
+    const waterGeometry = new THREE.PlaneGeometry(10000, 10000, 128, 128);
     const water = new Water(waterGeometry, {
         textureWidth: 512,
         textureHeight: 512,
         waterNormals: createWaterNormals(),
         sunDirection: new THREE.Vector3(),
-        sunColor: 0x707070, // Greyish reflection, not bright white
-        waterColor: 0x002b36, // Dark Cyan/Blue mix
+        sunColor: 0x707070,
+        waterColor: 0x002b36,
         distortionScale: 3.7,
         fog: scene.fog !== undefined
     });
     water.rotation.x = -Math.PI / 2;
-    // Rotate 0 deg to flow Towards Camera (Logic: Opposite of PI/Away)
-    water.rotation.z = 0;
+
+    // Physical Vertex Displacement (Simplified)
+    water.material.onBeforeCompile = (shader) => {
+        water.material.userData.shader = shader;
+        shader.uniforms.waveWeight = { value: 0.0 };
+
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <common>',
+            `#include <common>\nuniform float waveWeight;`
+        );
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `
+            #include <begin_vertex>
+            float v_time = time * 0.5;
+            float v_wave = sin(position.x * 0.005 + v_time) * cos(position.y * 0.005 + v_time);
+            v_wave += sin(position.x * 0.002 - v_time * 0.8) * 0.5;
+            v_wave += sin(position.y * 0.001 + v_time * 0.3) * 0.3;
+            transformed.z += v_wave * waveWeight * 5.0; 
+            `
+        );
+    };
     scene.add(water);
 
-    // ——— Updates ———
+    // ——— Controls ———
+    const wind = document.getElementById('wind');
+    const waveHeight = document.getElementById('waveHeight');
     const breeze = document.getElementById('breeze');
+    const currentDirection = document.getElementById('currentDirection');
+    const stormBtn = document.getElementById('storm');
+
     function updateSun() {
         if (!breeze) return;
         const theta = THREE.MathUtils.degToRad(parseFloat(breeze.value));
-
-        // FIXED SUN POSITION (No moving glare)
-        // Positioned highish and behind the camera or side to avoid direct blinding reflection
-        sun.position.set(-10, 50, -100);
+        const phi = THREE.MathUtils.degToRad(90 - 30);
+        const radius = 400;
+        sun.position.set(
+            radius * Math.sin(phi) * Math.cos(theta),
+            radius * Math.cos(phi),
+            radius * Math.sin(phi) * Math.sin(theta)
+        );
         sky.material.uniforms['sunPosition'].value.copy(sun.position);
-
         if (water && water.material) {
             water.material.uniforms['sunDirection'].value.copy(sun.position).normalize();
-            // User controls ONLY water rotation now
-            water.rotation.z = -theta;
         }
     }
+
+    function updateCurrentDirection() {
+        if (!currentDirection || !water) return;
+        const currentTheta = THREE.MathUtils.degToRad(parseFloat(currentDirection.value));
+        water.rotation.z = -currentTheta;
+    }
+
     if (breeze) breeze.oninput = updateSun;
+    if (currentDirection) currentDirection.oninput = updateCurrentDirection;
+
     updateSun();
+    updateCurrentDirection();
 
     // ——— Storm & Rain ———
     let stormMode = false;
-    const stormBtn = document.getElementById('storm');
     if (stormBtn) {
         stormBtn.onclick = () => {
             stormMode = !stormMode;
-            console.log("Storm Mode:", stormMode);
             if (stormMode) {
-                // PITCH BLACK STORM
-                skyUniforms['turbidity'].value = 10; // High turbidity to blur any sun artifacts
-                skyUniforms['rayleigh'].value = 0;   // Dark sky
+                skyUniforms['turbidity'].value = 20;
+                skyUniforms['rayleigh'].value = 0.05;
                 skyUniforms['mieCoefficient'].value = 0.1;
-                sun.intensity = 0.0; // No sun light
-                water.material.uniforms['sunColor'].value.setHex(0x000000); // No reflection
-
-                // HIDE SUN DISC
-                sky.material.uniforms['sunPosition'].value.set(0, -1000, 0);
+                sun.intensity = 0.2;
+                water.material.uniforms['sunColor'].value.setHex(0x202020);
+                water.material.uniforms['waterColor'].value.setHex(0x000508); // Almost black water in storm
             } else {
-                // North Atlantic Grey Day
                 skyUniforms['turbidity'].value = 5;
                 skyUniforms['rayleigh'].value = 0.5;
                 skyUniforms['mieCoefficient'].value = 0.005;
                 sun.intensity = 0.5;
                 water.material.uniforms['sunColor'].value.setHex(0x707070);
-
-                // RESTORE SUN
-                updateSun();
+                water.material.uniforms['waterColor'].value.setHex(0x002b36); // Deep cyan back to normal
             }
+            updateSun();
         };
     }
 
@@ -139,54 +171,45 @@ try {
     flash.position.set(0, 300, 0);
     scene.add(flash);
 
-    // ——— Animation ———
-    const wind = document.getElementById('wind');
-    const waveHeight = document.getElementById('waveHeight');
-
-    console.log("ATMOSPHERE FIXED MODE ACTIVE");
-
-    // Set initial Atlantic Atmosphere
-    skyUniforms['rayleigh'].value = 0.5; // Deep blue/black sky base
-    skyUniforms['turbidity'].value = 5;
-
+    // ——— Animation Loop ———
+    let frameCounter = 0;
     function animate() {
+        frameCounter++;
         requestAnimationFrame(animate);
+
         if (water && water.material) {
-            // Speed: Normal = 1/60, Storm = 1/20 (very fast)
             const delta = stormMode ? (1.0 / 20.0) : (1.0 / 60.0);
             water.material.uniforms['time'].value += delta;
 
             if (wind) {
-                const baseWind = parseFloat(wind.value); // 0 to 12
-                // Normal: 2.0 (Gentle/Choppy). Storm: 10.0 (Fast/Violent).
-                water.material.uniforms['size'].value = Math.max(0.1, stormMode ? baseWind * 10.0 : baseWind * 2.0);
+                const baseWind = parseFloat(wind.value);
+                water.material.uniforms['size'].value = Math.max(0.5, baseWind * 0.5);
             }
+
             if (waveHeight) {
-                const baseWave = parseFloat(waveHeight.value); // 0.0 to 6.0
-                // Normal: 3.0 (Rolling). Storm: 20.0 (Huge).
-                let targetScale = baseWave * 3.0;
-                if (stormMode) {
-                    targetScale = baseWave * 20.0;
+                const baseWave = parseFloat(waveHeight.value);
+                water.material.uniforms['distortionScale'].value = baseWave * 5.0;
+
+                // Update vertex displacement uniform
+                if (water.material.userData.shader && water.material.userData.shader.uniforms.waveWeight) {
+                    water.material.userData.shader.uniforms.waveWeight.value = baseWave * 1.5;
                 }
-                water.material.uniforms['distortionScale'].value = targetScale;
+
+                if (frameCounter % 60 === 0) {
+                    console.log("%c WAVE SCALE:", "color: #00ff00; font-weight: bold;", "Height:", baseWave);
+                }
             }
         }
+
         if (stormMode) {
             rainParticles.visible = true;
             rainParticles.rotation.y -= 0.002;
             const positions = rainParticles.geometry.attributes.position.array;
             let needsUpdate = false;
             for (let i = 1; i < positions.length; i += 3) {
-                positions[i] += 5; // INVERTED GRAVITY (User says previous was up, so trying down/up flip)
-                positions[i - 1] -= 1; // Wind blowing X
-                positions[i + 1] -= 1; // Wind blowing Z
-
-                // Reset if above 1000 (since we are going UP)
+                positions[i] += 5;
                 if (positions[i] > 1000) {
                     positions[i] = Math.random() * 200;
-                    // Reset X/Z too to keep them in bounds roughly
-                    positions[i - 1] = (Math.random() - 0.5) * 2000;
-                    positions[i + 1] = (Math.random() - 0.5) * 2000;
                     needsUpdate = true;
                 }
             }
@@ -211,6 +234,5 @@ try {
 
 } catch (e) {
     console.error("CRITICAL 3D ERROR:", e);
-    // Error will be caught by window.onerror in index.html too
     throw e;
 }
